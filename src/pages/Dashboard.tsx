@@ -12,9 +12,9 @@ import {
   deleteDoc, 
   doc, 
   updateDoc, 
-  serverTimestamp,
-  orderBy
+  serverTimestamp
 } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Wishlist {
   id: string;
@@ -44,6 +44,9 @@ export default function Dashboard() {
   const [listTitle, setListTitle] = useState('');
   const [selectedImage, setSelectedImage] = useState(AVAILABLE_IMAGES[0].url);
 
+  // Deletion confirm state
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   // Sync with Firestore
   useEffect(() => {
     if (!user) {
@@ -53,8 +56,7 @@ export default function Dashboard() {
 
     const q = query(
       collection(db, "wishlists"), 
-      where("creatorId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("creatorId", "==", user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -62,6 +64,14 @@ export default function Dashboard() {
         id: doc.id,
         ...doc.data()
       })) as Wishlist[];
+      
+      // Sort client-side to avoid needing a composite index
+      fetchedLists.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const timeB = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return timeB - timeA;
+      });
+      
       setLists(fetchedLists);
     }, (error) => {
       console.error("Error fetching wishlists:", error);
@@ -111,12 +121,19 @@ export default function Dashboard() {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (confirm("Möchtest du diese gesamte Wunschliste wirklich löschen?")) {
+    if (confirmDeleteId === id) {
       try {
         await deleteDoc(doc(db, "wishlists", id));
+        setConfirmDeleteId(null);
       } catch (error) {
         console.error("Error deleting wishlist:", error);
       }
+    } else {
+      setConfirmDeleteId(id);
+      // Automatically clear confirm state after 3 seconds
+      setTimeout(() => {
+        setConfirmDeleteId((prev) => (prev === id ? null : prev));
+      }, 3000);
     }
   };
 
@@ -128,7 +145,11 @@ export default function Dashboard() {
 
   if (!user) {
     return (
-      <div className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', textAlign: 'center' }}>
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', textAlign: 'center' }}>
         <header style={{ marginBottom: '4rem' }}>
           <h1 className="display-lg">Deine Wunschlisten.</h1>
           <p className="title-sm" style={{ opacity: 0.7, marginTop: '1.5rem' }}>Bitte melde dich an, um deine Listen zu verwalten.</p>
@@ -136,12 +157,16 @@ export default function Dashboard() {
         <button className="btn-primary" onClick={loginWithGoogle} style={{ padding: '1.5rem 3rem' }}>
           <LogIn size={20} /> Mit Google anmelden
         </button>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="container section-padding">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="container section-padding"
+    >
       <header className="dashboard-header">
         <div style={{ maxWidth: '800px' }}>
           <p className="label-md" style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -162,9 +187,14 @@ export default function Dashboard() {
       </div>
 
       <div className="grid-masonry">
-        <div className="card" style={{ minHeight: 'clamp(300px, 50vh, 450px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', backgroundColor: 'var(--surface-container-low)', border: '1px dashed var(--outline-variant)', boxShadow: 'none' }}>
+        <motion.div layout className="card" style={{ minHeight: 'clamp(300px, 50vh, 450px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', backgroundColor: 'var(--surface-container-low)', border: '1px dashed var(--outline-variant)', boxShadow: 'none' }}>
           {isFormOpen ? (
-            <form onSubmit={handleSubmit} style={{ width: '100%', animation: 'fadeIn 0.5s ease' }}>
+            <motion.form 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onSubmit={handleSubmit} 
+              style={{ width: '100%' }}
+            >
               <label className="input-label">{editingListId ? "Wunschliste bearbeiten" : "Name der Wunschliste"}</label>
               <input
                 autoFocus
@@ -205,7 +235,7 @@ export default function Dashboard() {
                 <button type="submit" className="btn-primary">{editingListId ? "Speichern" : "Initialisieren"}</button>
                 <button type="button" className="btn-tertiary" onClick={() => setIsFormOpen(false)}>Abbrechen</button>
               </div>
-            </form>
+            </motion.form>
           ) : (
             <button 
               className="btn-tertiary" 
@@ -218,44 +248,65 @@ export default function Dashboard() {
               Wunschliste erstellen
             </button>
           )}
-        </div>
+        </motion.div>
 
-        {lists.map((list) => (
-          <div 
-            key={list.id} 
-            className="card" 
-            onClick={() => navigate(`/list/${list.id}`)}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="card-image-wrapper">
-              <img src={list.image} alt={list.title} />
+        <AnimatePresence mode="popLayout">
+          {lists.map((list) => (
+            <motion.div 
+              layout
+              layoutId={`list-${list.id}`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, filter: 'blur(5px)' }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              key={list.id} 
+              className="card" 
+              onClick={() => navigate(`/list/${list.id}`)}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="card-image-wrapper">
+                <img src={list.image} alt={list.title} />
+                
+                <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
+                  <button 
+                    onClick={(e) => handleOpenEdit(e, list)}
+                    style={{ backgroundColor: 'var(--surface-bright)', backdropFilter: 'blur(10px)', padding: '0.5rem', borderRadius: '50%' }}
+                  >
+                    <Edit3 size={16} />
+                  </button>
+                  <button 
+                    onClick={(e) => handleDelete(e, list.id)}
+                    style={{ 
+                      backgroundColor: confirmDeleteId === list.id ? '#a66a68' : 'var(--surface-bright)', 
+                      color: confirmDeleteId === list.id ? 'white' : '#a66a68',
+                      backdropFilter: 'blur(10px)', 
+                      padding: '0.5rem', 
+                      borderRadius: '50%',
+                      transition: 'all 0.3s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: confirmDeleteId === list.id ? '0.5rem' : '0',
+                      paddingRight: confirmDeleteId === list.id ? '1rem' : '0.5rem',
+                      paddingLeft: confirmDeleteId === list.id ? '1rem' : '0.5rem',
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    {confirmDeleteId === list.id && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 600 }}>Sicher?</span>}
+                  </button>
+                </div>
+              </div>
               
-              <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem' }}>
-                <button 
-                  onClick={(e) => handleOpenEdit(e, list)}
-                  style={{ backgroundColor: 'var(--surface-bright)', backdropFilter: 'blur(10px)', padding: '0.5rem', borderRadius: '50%' }}
-                >
-                  <Edit3 size={16} />
-                </button>
-                <button 
-                  onClick={(e) => handleDelete(e, list.id)}
-                  style={{ backgroundColor: 'var(--surface-bright)', backdropFilter: 'blur(10px)', padding: '0.5rem', borderRadius: '50%', color: '#a66a68' }}
-                >
-                  <Trash2 size={16} />
-                </button>
+              <div className="card-content">
+                <h2 className="title-lg" style={{ marginBottom: '1rem' }}>{list.title}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
+                  <span className="label-md" style={{ color: 'inherit' }}>Entdecken</span>
+                  <ArrowRight size={16} />
+                </div>
               </div>
-            </div>
-            
-            <div className="card-content">
-              <h2 className="title-lg" style={{ marginBottom: '1rem' }}>{list.title}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)' }}>
-                <span className="label-md" style={{ color: 'inherit' }}>Entdecken</span>
-                <ArrowRight size={16} />
-              </div>
-            </div>
-          </div>
-        ))}
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
-    </div>
+    </motion.div>
   );
 }

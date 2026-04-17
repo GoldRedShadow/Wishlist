@@ -1,5 +1,5 @@
 ﻿{
     "projects":  {
-                     "default":  "my-wishlist-for-me"
+                     "wishes":  "my-wishlist-for-me"
                  }
 }

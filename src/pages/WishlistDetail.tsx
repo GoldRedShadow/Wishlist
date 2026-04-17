@@ -15,6 +15,7 @@ import {
   query,
   orderBy
 } from 'firebase/firestore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Wish {
   id: string;
@@ -122,6 +123,9 @@ export default function WishlistDetail() {
   // Reservation State for Guest
   const [reservingWishId, setReservingWishId] = useState<string | null>(null);
   const [guestName, setGuestName] = useState('');
+  
+  // Deletion confirm state
+  const [confirmDeleteWishId, setConfirmDeleteWishId] = useState<string | null>(null);
 
   const handleAddWish = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,10 +229,14 @@ export default function WishlistDetail() {
   const handleDeleteItem = async (e: React.MouseEvent, wishId: string) => {
     e.stopPropagation();
     if (!id) return;
-    if (confirm("Möchtest du diesen Wunsch wirklich unwiderruflich löschen?")) {
+    if (confirmDeleteWishId === wishId) {
       try {
         await deleteDoc(doc(db, "wishlists", id, "wishes", wishId));
+        setConfirmDeleteWishId(null);
       } catch (e) { console.error(e); }
+    } else {
+      setConfirmDeleteWishId(wishId);
+      setTimeout(() => setConfirmDeleteWishId(prev => prev === wishId ? null : prev), 3000);
     }
   };
 
@@ -246,7 +254,16 @@ export default function WishlistDetail() {
 
     if (editingWishId === wish.id) {
       return (
-        <div key={`edit-${wish.id}`} className="card" style={{ padding: '2rem', border: '1px solid var(--outline-variant)' }}>
+        <motion.div 
+          layout
+          layoutId={`wish-${wish.id}`}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          key={`edit-${wish.id}`} 
+          className="card" 
+          style={{ padding: '2rem', border: '1px solid var(--outline-variant)' }}
+        >
           <h3 className="title-lg" style={{ marginBottom: '2rem' }}>Wunsch bearbeiten</h3>
           <form onSubmit={handleSaveEdit}>
             <div style={{ marginBottom: '2rem' }}>
@@ -268,12 +285,23 @@ export default function WishlistDetail() {
               <button type="button" className="btn-tertiary" onClick={() => setEditingWishId(null)}>Abbrechen</button>
             </div>
           </form>
-        </div>
+        </motion.div>
       );
     }
 
     return (
-      <div key={wish.id} className="wish-item" onClick={() => handleStartEdit(wish)} style={{ opacity: isGrantedSection ? 0.6 : 1, filter: isGrantedSection ? 'grayscale(80%)' : 'none' }}>
+      <motion.div 
+        layout
+        layoutId={`wish-${wish.id}`}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
+        transition={{ duration: 0.4, type: "spring", bounce: 0 }}
+        key={wish.id} 
+        className="wish-item" 
+        onClick={() => handleStartEdit(wish)} 
+        style={{ opacity: isGrantedSection ? 0.6 : 1, filter: isGrantedSection ? 'grayscale(80%)' : 'none', overflow: 'hidden' }}
+      >
         <div style={{ flex: 1 }}>
           <h2 className="title-lg" style={{ marginBottom: '0.5rem', textDecoration: isGrantedSection ? 'line-through' : 'none', color: isGrantedSection ? 'var(--outline-variant)' : 'var(--on-surface)' }}>
             {wish.name}
@@ -296,9 +324,23 @@ export default function WishlistDetail() {
                 <span className="label-part">{wish.isGranted ? 'Rückgängig' : 'Erfüllt'}</span>
                 <span className="icon-part"><CheckCircle2 size={16} /></span>
               </button>
-              <button onClick={(e) => handleDeleteItem(e, wish.id)} className="hover-action-btn delete-btn">
-                <span className="label-part">Löschen</span>
-                <span className="icon-part"><Trash2 size={16} /></span>
+              <button 
+                onClick={(e) => handleDeleteItem(e, wish.id)} 
+                className="hover-action-btn delete-btn"
+                style={{
+                  backgroundColor: confirmDeleteWishId === wish.id ? '#a66a68' : 'transparent',
+                  color: confirmDeleteWishId === wish.id ? '#fff' : 'inherit',
+                  paddingLeft: confirmDeleteWishId === wish.id ? '1rem' : 0,
+                  borderRadius: confirmDeleteWishId === wish.id ? '20px' : 0,
+                  transition: 'all 0.3s ease',
+                }}
+              >
+                <span className="label-part" style={{
+                  opacity: confirmDeleteWishId === wish.id ? 1 : undefined,
+                  transform: confirmDeleteWishId === wish.id ? 'none' : undefined,
+                  maxWidth: confirmDeleteWishId === wish.id ? '100px' : undefined
+                }}>{confirmDeleteWishId === wish.id ? 'Sicher?' : 'Löschen'}</span>
+                <span className="icon-part" style={{ color: confirmDeleteWishId === wish.id ? '#ffffff' : undefined }}><Trash2 size={16} /></span>
               </button>
             </>
           )}
@@ -331,9 +373,7 @@ export default function WishlistDetail() {
             </div>
           )}
         </div>
-
-        {/* Modal handled at top level */}
-      </div>
+      </motion.div>
     );
   };
 
@@ -356,23 +396,41 @@ export default function WishlistDetail() {
         )}
       </nav>
 
-      <div className="wishlist-hero">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="wishlist-hero"
+      >
         <img src={wishlist.image} alt="Cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <div className="hero-content">
           <div className="container" style={{ padding: 0 }}>
-            <h1 className="display-lg" style={{ marginBottom: '0.5rem' }}>{wishlist.title}.</h1>
-            <p className="title-sm" style={{ opacity: 0.8 }}>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="display-lg" style={{ marginBottom: '0.5rem' }}>{wishlist.title}.</motion.h1>
+            <motion.p 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+              className="title-sm" style={{ opacity: 0.8 }}>
               {isGuestView ? "Eine kuratierte Wunschliste. Du kannst Wünsche anonym reservieren." : "Deine private Wunschliste. Klicke auf einen Wunsch zum Bearbeiten."}
-            </p>
+            </motion.p>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <main className="container" style={{ maxWidth: '900px', paddingBottom: '8rem' }}>
         {!isGuestView && (
           <div style={{ marginBottom: '4rem' }}>
+            <AnimatePresence mode="wait">
             {isAdding ? (
-              <div className="card" style={{ padding: '2rem' }}>
+              <motion.div 
+                key="add-form"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="card" style={{ padding: '2rem' }}>
                 <h3 className="title-lg" style={{ marginBottom: '2rem' }}>Neuen Wunsch hinzufügen</h3>
                 <form onSubmit={handleAddWish}>
                   <div style={{ marginBottom: '2rem' }}>
@@ -394,16 +452,21 @@ export default function WishlistDetail() {
                     <button type="button" className="btn-tertiary" onClick={() => setIsAdding(false)}>Verwerfen</button>
                   </div>
                 </form>
-              </div>
+              </motion.div>
             ) : (
-              <button 
+              <motion.button 
+                key="add-btn"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
                 className="btn-tertiary" 
                 onClick={() => setIsAdding(true)}
                 style={{ fontSize: '1.25rem', padding: '1rem 0' }}
               >
                 <Plus size={20} /> Wunsch hinzufügen
-              </button>
+              </motion.button>
             )}
+            </AnimatePresence>
           </div>
         )}
 
@@ -412,32 +475,51 @@ export default function WishlistDetail() {
         </div>
 
         <section style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginBottom: '4rem' }}>
-          {activeWishes.map((wish) => renderWishItem(wish, false))}
-          {activeWishes.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '2rem 0', opacity: 0.5 }}>
-              <p className="title-sm" style={{ fontStyle: 'italic' }}>Aktuell keine offenen Wünsche.</p>
-            </div>
-          )}
+          <AnimatePresence mode="popLayout">
+            {activeWishes.map((wish) => renderWishItem(wish, false))}
+          </AnimatePresence>
+          <AnimatePresence>
+            {activeWishes.length === 0 && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }} 
+                animate={{ opacity: 1, height: 'auto' }} 
+                exit={{ opacity: 0, height: 0 }}
+                style={{ textAlign: 'center', padding: '2rem 0', opacity: 0.5 }}
+              >
+                <p className="title-sm" style={{ fontStyle: 'italic' }}>Aktuell keine offenen Wünsche.</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </section>
 
         {grantedWishes.length > 0 && (
-          <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} layout>
             <div className="editorial-divider">
               <span className="label-md" style={{ letterSpacing: '0.1em', color: 'var(--outline-variant)' }}>Bereits erhalten</span>
             </div>
             <section style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              {grantedWishes.map((wish) => renderWishItem(wish, true))}
+              <AnimatePresence mode="popLayout">
+                {grantedWishes.map((wish) => renderWishItem(wish, true))}
+              </AnimatePresence>
             </section>
-          </>
+          </motion.div>
         )}
       </main>
 
+      <AnimatePresence>
       {reservingWishId && (
-        <div 
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} 
           onClick={() => setReservingWishId(null)}
         >
-          <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }} onClick={(e) => e.stopPropagation()}>
+          <motion.div 
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            className="card" style={{ width: '100%', maxWidth: '400px', padding: '2rem' }} onClick={(e) => e.stopPropagation()}>
             <h3 className="title-lg" style={{ marginBottom: '1.5rem' }}>Reservierung</h3>
             <p className="label-md" style={{ marginBottom: '2rem', textTransform: 'none' }}>Bitte gib deinen Namen an.</p>
             <form onSubmit={handleConfirmReserve}>
@@ -453,9 +535,10 @@ export default function WishlistDetail() {
                 <button type="button" className="btn-tertiary" onClick={() => setReservingWishId(null)}>Abbrechen</button>
               </div>
             </form>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </>
   );
 }
