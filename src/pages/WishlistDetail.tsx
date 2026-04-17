@@ -58,6 +58,9 @@ export default function WishlistDetail() {
       } else {
         navigate('/');
       }
+    }, (error) => {
+      console.error("Error fetching wishlist metadata:", error);
+      navigate('/');
     });
     return () => unsubscribe();
   }, [id, navigate]);
@@ -70,13 +73,18 @@ export default function WishlistDetail() {
       const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Wish[];
       setWishes(fetched);
       setLoading(false);
+    }, (error) => {
+      console.error("Error fetching wishes:", error);
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [id]);
 
   // 3. Fetch Reservations (Secret: Creator will fail this due to Security Rules)
   useEffect(() => {
-    if (!id) {
+    // If we already know we are the creator, don't even try to subscribe.
+    // This avoids "Permission Denied" errors in the console.
+    if (!id || isCreator) {
       setReservations({});
       return;
     }
@@ -91,13 +99,13 @@ export default function WishlistDetail() {
         setReservations(resMap);
       },
       (_error) => {
-        // This will trigger for the Creator due to security rules
+        // This will trigger if the user becomes the creator or if rules change
         console.log("Secrecy active: Reservation data hidden.");
         setReservations({}); 
       }
     );
     return () => unsubscribe();
-  }, [id, wishlist, isCreator]);
+  }, [id, isCreator]);
 
   // Add Item State
   const [isAdding, setIsAdding] = useState(false);

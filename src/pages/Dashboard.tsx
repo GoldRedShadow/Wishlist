@@ -63,6 +63,8 @@ export default function Dashboard() {
         ...doc.data()
       })) as Wishlist[];
       setLists(fetchedLists);
+    }, (error) => {
+      console.error("Error fetching wishlists:", error);
     });
 
     return () => unsubscribe();

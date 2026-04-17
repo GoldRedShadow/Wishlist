@@ -8,7 +8,7 @@ service cloud.firestore {
 
     match /wishlists/{wishlistId} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
       allow update, delete: if isCreator(wishlistId);
 
       match /wishes/{wishId} {
@@ -17,8 +17,13 @@ service cloud.firestore {
       }
 
       match /reservations/{wishId} {
-        // Guests can manage reservations
-        allow create, update, delete: if true;
+        // Anyone can create a reservation (guests or anonymous users)
+        allow create: if true;
+
+        // Only the person who made the reservation (or potentially the creator of the list,
+        // but we want it to be a surprise, so let's stick to the reserver) can update/delete it.
+        // We added 'reservedByUid' in the frontend to support this.
+        allow update, delete: if request.auth != null && (resource.data.reservedByUid == request.auth.uid);
         
         // Hide reservations from the creator to keep it a surprise!
         // Everyone else (guests) can read them to see what's already taken.
