@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper to check if a user is the creator of a wishlist
+    function isCreator(wishlistId) {
+      return request.auth != null && request.auth.uid == get(/databases/$(database)/documents/wishlists/$(wishlistId)).data.creatorId;
+    }
+
+    match /wishlists/{wishlistId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if isCreator(wishlistId);
+
+      match /wishes/{wishId} {
+        allow read: if true;
+        allow create, update, delete: if isCreator(wishlistId);
+      }
+
+      match /reservations/{wishId} {
+        // Guests can manage reservations
+        allow create, update, delete: if true;
+        
+        // Hide reservations from the creator to keep it a surprise!
+        // Everyone else (guests) can read them to see what's already taken.
+        allow read: if !isCreator(wishlistId);
+      }
+    }
+  }
+}
